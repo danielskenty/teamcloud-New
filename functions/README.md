@@ -58,6 +58,22 @@ Security
 - Authenticate and authorize callers to `/create-payment` if needed.
 - Keep secrets in `functions` config or use Secret Manager.
 
+Email receipt setup
+
+- This backend can send email receipts when a matching sale contains a customer email.
+- Configure SMTP settings in Firebase functions config:
+
+```bash
+firebase functions:config:set mail.smtp_host="smtp.example.com"
+firebase functions:config:set mail.smtp_port="587"
+firebase functions:config:set mail.smtp_secure="false"
+firebase functions:config:set mail.smtp_user="your-smtp-user"
+firebase functions:config:set mail.smtp_pass="your-smtp-password"
+firebase functions:config:set mail.smtp_from="no-reply@yourdomain.com"
+```
+
+- The webhook handler will attempt to send receipts after confirming a sale.
+
 Notes
 
 - Adjust the Nomba API path as needed if their API differs.

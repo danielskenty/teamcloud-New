@@ -3,6 +3,8 @@ const admin = require('firebase-admin');
 const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
+const nodemailer = require('nodemailer');
+const PDFDocument = require('pdfkit');
 
 admin.initializeApp();
 const app = express();
@@ -171,6 +173,17 @@ app.post('/webhook', rawBodyMiddleware, async (req, res) => {
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
           console.log(`Updated sale ${matched.id} for tenant ${tenantId} as confirmed`);
+
+          // Optional email receipt when customer email is present
+          const customerEmail = matched.data()?.customerEmail || matched.data()?.customer?.email || metadata?.customerEmail || metadata?.customer?.email;
+          if (customerEmail) {
+            try {
+              await sendReceiptEmail(customerEmail, matched.id, tenantId, saleDataToReceiptPayload(matched.data()));
+              console.log(`Sent receipt email to ${customerEmail}`);
+            } catch (emailError) {
+              console.error('Failed to send receipt email', emailError);
+            }
+          }
         } else {
           console.log('No matching sale found for transactionId', transactionId, 'reference', reference);
         }
@@ -185,5 +198,100 @@ app.post('/webhook', rawBodyMiddleware, async (req, res) => {
     return res.status(500).send('error');
   }
 });
+
+function saleDataToReceiptPayload(data) {
+  if (!data) return null;
+
+  return {
+    saleId: data.id || data.saleId,
+    tenantId: data.tenantId,
+    branchId: data.branchId,
+    cashierId: data.cashierId,
+    customerEmail: data.customerEmail || data.customer?.email || null,
+    items: data.items || [],
+    subtotal: data.subtotal,
+    tax: data.tax,
+    total: data.total,
+    paymentMethod: data.paymentMethod,
+    status: data.status,
+    createdAt: data.createdAt,
+  };
+}
+
+async function sendReceiptEmail(email, saleId, tenantId, payload) {
+  const config = functions.config();
+  const mailConfig = config?.mail;
+  if (!mailConfig || !mailConfig.smtp_host || !mailConfig.smtp_user || !mailConfig.smtp_pass) {
+    throw new Error('SMTP config missing');
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: mailConfig.smtp_host,
+    port: parseInt(mailConfig.smtp_port || '587', 10),
+    secure: mailConfig.smtp_secure === 'true',
+    auth: {
+      user: mailConfig.smtp_user,
+      pass: mailConfig.smtp_pass,
+    },
+  });
+
+  const pdfBuffer = await buildReceiptPdf(payload);
+  const mailOptions = {
+    from: mailConfig.smtp_from || mailConfig.smtp_user,
+    to: email,
+    subject: `Receipt for Sale ${saleId}`,
+    text: `Thank you for your purchase. Your receipt is attached for sale ${saleId}.`,
+    attachments: [
+      {
+        filename: `receipt-${saleId}.pdf`,
+        content: pdfBuffer,
+      },
+    ],
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
+function buildReceiptPdf(payload) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    const chunks = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    doc.fontSize(20).text('TeamCloud Retail POS', { underline: true });
+    doc.moveDown();
+    doc.fontSize(12).text(`Sale: ${payload.saleId}`);
+    doc.text(`Tenant: ${payload.tenantId}`);
+    doc.text(`Branch: ${payload.branchId}`);
+    if (payload.customerEmail) {
+      doc.text(`Customer: ${payload.customerEmail}`);
+    }
+    doc.text(`Payment Method: ${payload.paymentMethod}`);
+    doc.text(`Status: ${payload.status}`);
+    doc.text(`Date: ${payload.createdAt ? new Date(payload.createdAt._seconds * 1000).toISOString() : ''}`);
+    doc.moveDown();
+
+    doc.fontSize(14).text('Items');
+    doc.moveDown(0.5);
+    doc.fontSize(10);
+    doc.text('Item | Qty | Unit Price | Total');
+    doc.moveDown(0.2);
+    if (Array.isArray(payload.items)) {
+      payload.items.forEach((item) => {
+        doc.text(`${item.productName || item.name || 'Item'} | ${item.quantity || item.qty || 0} | ${item.unitPrice || item.price || 0} | ${item.total || 0}`);
+      });
+    }
+    doc.moveDown();
+    doc.text(`Subtotal: ${payload.subtotal || 0}`);
+    doc.text(`Tax: ${payload.tax || 0}`);
+    doc.text(`Total: ${payload.total || 0}`);
+    doc.moveDown();
+    doc.text('Thank you for your purchase!', { italics: true });
+
+    doc.end();
+  });
+}
 
 exports.api = functions.https.onRequest(app);
