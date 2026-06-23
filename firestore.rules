@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.role == 'super_admin';
+    }
+
+    function hasTenantAccess(tenantId) {
+      return isSignedIn() && request.auth.token.tenant_id == tenantId;
+    }
+
+    function hasTenantRole(tenantId, roles) {
+      return hasTenantAccess(tenantId) && request.auth.token.role in roles;
+    }
+
+    match /tenants/{tenantId} {
+      allow read: if isSuperAdmin() || hasTenantAccess(tenantId);
+      allow write: if isSuperAdmin();
+
+      match /branches/{branchId} {
+        allow create, update, delete: if hasTenantRole(tenantId, ['business_owner', 'branch_manager', 'inventory_officer']);
+        allow read: if hasTenantAccess(tenantId);
+      }
+
+      match /users/{userId} {
+        allow create, update, delete: if isSuperAdmin() || hasTenantRole(tenantId, ['business_owner', 'branch_manager']);
+        allow read: if isSuperAdmin() || hasTenantAccess(tenantId);
+      }
+
+      match /products/{productId} {
+        allow create, update, delete: if hasTenantRole(tenantId, ['business_owner', 'inventory_officer']);
+        allow read: if hasTenantAccess(tenantId);
+      }
+
+      match /categories/{categoryId} {
+        allow create, update, delete: if hasTenantRole(tenantId, ['business_owner', 'inventory_officer']);
+        allow read: if hasTenantAccess(tenantId);
+      }
+
+      match /brands/{brandId} {
+        allow create, update, delete: if hasTenantRole(tenantId, ['business_owner', 'inventory_officer']);
+        allow read: if hasTenantAccess(tenantId);
+      }
+
+      match /inventory/{inventoryId} {
+        allow create, update, delete: if hasTenantRole(tenantId, ['business_owner', 'inventory_officer']);
+        allow read: if hasTenantAccess(tenantId);
+      }
+
+      match /sales/{saleId} {
+        allow create: if hasTenantRole(tenantId, ['cashier', 'business_owner', 'branch_manager', 'sales_staff']);
+        allow read: if hasTenantAccess(tenantId);
+        allow update: if hasTenantRole(tenantId, ['business_owner', 'branch_manager', 'accountant']);
+        allow delete: if false;
+      }
+
+      match /customers/{customerId} {
+        allow create, update, delete: if hasTenantRole(tenantId, ['business_owner', 'branch_manager', 'cashier', 'sales_staff']);
+        allow read: if hasTenantAccess(tenantId);
+      }
+
+      match /suppliers/{supplierId} {
+        allow create, update, delete: if hasTenantRole(tenantId, ['business_owner', 'branch_manager', 'accountant']);
+        allow read: if hasTenantAccess(tenantId);
+      }
+
+      match /expenses/{expenseId} {
+        allow create, update, delete: if hasTenantRole(tenantId, ['business_owner', 'accountant']);
+        allow read: if hasTenantAccess(tenantId);
+      }
+
+      match /purchases/{purchaseId} {
+        allow create, update, delete: if hasTenantRole(tenantId, ['business_owner', 'accountant']);
+        allow read: if hasTenantAccess(tenantId);
+      }
+    }
+
+    match /auditLogs/{logId} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    match /subscriptions/{subscriptionId} {
+      allow read, write: if isSuperAdmin();
+    }
+  }
+}
