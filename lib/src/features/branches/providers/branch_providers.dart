@@ -6,9 +6,11 @@ final branchRepositoryProvider = Provider<BranchRepository>((ref) {
   return BranchRepository();
 });
 
-final branchesProvider = FutureProvider.autoDispose<List<Branch>>((ref) async {
-  const tenantId = 'demoTenant';
-  final repository = ref.watch(branchRepositoryProvider);
-  final snapshot = await repository.getBranches(tenantId);
-  return snapshot.docs.map((doc) => Branch.fromMap(doc.id, doc.data())).toList();
-});
+final branchesProvider = FutureProvider.autoDispose
+    .family<List<Branch>, String>((ref, tenantId) async {
+      final repository = ref.watch(branchRepositoryProvider);
+      final snapshot = await repository.getBranches(tenantId);
+      return snapshot.docs
+          .map((doc) => Branch.fromMap(doc.id, doc.data()))
+          .toList();
+    });

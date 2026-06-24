@@ -1,14 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../products/providers/product_provider.dart';
 import '../../products/models/product.dart';
-import '../../sales/models/sale.dart';
-import '../../sales/providers/sale_provider.dart';
 // Payment provider injected from providers; concrete implementations in payment module
 import '../providers/cart_provider.dart';
 import '../providers/payment_state_provider.dart';
-import '../../sales/receipt_generator.dart';
 
 class CheckoutScreen extends ConsumerWidget {
   final String tenantId;
@@ -33,7 +29,8 @@ class CheckoutScreen extends ConsumerWidget {
         children: [
           Expanded(
             child: productsAsync.when(
-              data: (products) => _buildProductGrid(context, products, cartNotifier),
+              data: (products) =>
+                  _buildProductGrid(context, products, cartNotifier),
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, s) => Center(child: Text('Error: $e')),
             ),
@@ -44,7 +41,11 @@ class CheckoutScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildProductGrid(BuildContext context, List<Product> products, CartNotifier cart) {
+  Widget _buildProductGrid(
+    BuildContext context,
+    List<Product> products,
+    CartNotifier cart,
+  ) {
     return GridView.builder(
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -72,7 +73,10 @@ class CheckoutScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
-                  Text('\$${p.sellingPrice.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    '\$${p.sellingPrice.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
             ),
@@ -85,9 +89,9 @@ class CheckoutScreen extends ConsumerWidget {
   Widget _buildCartSummary(BuildContext context, WidgetRef ref) {
     final cart = ref.watch(cartProvider);
     final cartNotifier = ref.read(cartProvider.notifier);
-    final saleRepo = ref.watch(saleRepositoryProvider);
     final paymentMethodState = ref.watch(paymentMethodProvider);
     final paymentClient = ref.read(paymentProvider);
+    final saleFinalizer = ref.read(saleFinalizationServiceProvider);
 
     return SafeArea(
       child: Container(
@@ -103,8 +107,12 @@ class CheckoutScreen extends ConsumerWidget {
               children: cart.items.map((it) {
                 return ListTile(
                   title: Text(it.name),
-                  subtitle: Text('Qty: ${it.quantity} | Unit: \$${it.unitPrice.toStringAsFixed(2)}'),
-                  trailing: Text('\$${(it.unitPrice * it.quantity).toStringAsFixed(2)}'),
+                  subtitle: Text(
+                    'Qty: ${it.quantity} | Unit: \$${it.unitPrice.toStringAsFixed(2)}',
+                  ),
+                  trailing: Text(
+                    '\$${(it.unitPrice * it.quantity).toStringAsFixed(2)}',
+                  ),
                 );
               }).toList(),
             ),
@@ -133,7 +141,10 @@ class CheckoutScreen extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Subtotal', style: Theme.of(context).textTheme.bodyLarge),
-                Text('\$${cart.subtotal.toStringAsFixed(2)}', style: Theme.of(context).textTheme.bodyLarge),
+                Text(
+                  '\$${cart.subtotal.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
               ],
             ),
             const SizedBox(height: 4),
@@ -148,8 +159,18 @@ class CheckoutScreen extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Total', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                Text('\$${cart.total.toStringAsFixed(2)}', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                Text(
+                  'Total',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '\$${cart.total.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -160,74 +181,72 @@ class CheckoutScreen extends ConsumerWidget {
                     onPressed: cart.items.isEmpty
                         ? null
                         : () async {
-                            // Process payment via selected provider
-                            // Create a deterministic reference for the payment and sale
-                            final reference = FirebaseFirestore.instance.collection('tenants').doc().id;
+                            final reference = DateTime.now()
+                                .microsecondsSinceEpoch
+                                .toString();
                             final amountCents = (cart.total * 100).toInt();
-                            final paymentResult = await paymentClient.processPayment(
-                              amountCents: amountCents,
-                              currency: 'USD',
-                              reference: reference,
-                              metadata: {
-                                'tenantId': tenantId,
-                                'branchId': branchId,
-                                'cashierId': cashierId,
-                              },
-                            );
+                            final paymentResult = await paymentClient
+                                .processPayment(
+                                  amountCents: amountCents,
+                                  currency: 'USD',
+                                  reference: reference,
+                                  items: cart.items,
+                                  metadata: {
+                                    'tenantId': tenantId,
+                                    'branchId': branchId,
+                                    'cashierId': cashierId,
+                                  },
+                                );
 
                             if (!paymentResult.success) {
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment failed: ${paymentResult.message}')));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Payment failed: ${paymentResult.message}',
+                                    ),
+                                  ),
+                                );
                               }
                               return;
                             }
 
-                            // Build Sale (record payment reference)
-                            final id = FirebaseFirestore.instance.collection('tenants').doc().id;
-                            final sale = Sale(
-                              id: id,
-                              tenantId: tenantId,
-                              branchId: branchId,
-                              cashierId: cashierId,
-                              customerId: null,
-                              items: cart.items.map((it) => SaleItem(
-                                productId: it.productId,
-                                productName: it.name,
-                                unitPrice: it.unitPrice,
-                                quantity: it.quantity,
-                                discount: 0.0,
-                                total: it.unitPrice * it.quantity,
-                              )).toList(),
-                              subtotal: cart.subtotal,
-                              discount: 0.0,
-                              tax: cart.tax,
-                              total: cart.total,
-                              paymentMethod: paymentMethodState,
-                              status: 'completed',
-                              paymentRef: reference,
-                              notes: 'payment_ref:${paymentResult.transactionId ?? ''}',
-                              createdAt: DateTime.now(),
-                              updatedAt: DateTime.now(),
-                            );
+                            final finalizedSale = await saleFinalizer
+                                .finalizeSale(
+                                  tenantId: tenantId,
+                                  branchId: branchId,
+                                  cashierId: cashierId,
+                                  items: cart.items,
+                                  paymentMethod: paymentMethodState,
+                                  paymentRef: reference,
+                                  transactionId: paymentResult.transactionId,
+                                );
 
-                            try {
-                              await saleRepo.createSale(tenantId, sale);
-                              cartNotifier.clear();
+                            if (!finalizedSale.success) {
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sale created')));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Sale failed: ${finalizedSale.message}',
+                                    ),
+                                  ),
+                                );
                               }
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                              }
+                              return;
                             }
-                            // Optionally generate and print receipt
-                            try {
-                              await ReceiptGenerator.printPdf(sale);
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Receipt print error: $e')));
-                              }
+
+                            cartNotifier.clear();
+                            if (context.mounted) {
+                              final saleId = finalizedSale.saleId;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    saleId == null
+                                        ? 'Sale completed'
+                                        : 'Sale completed: $saleId',
+                                  ),
+                                ),
+                              );
                             }
                           },
                     child: const Text('Pay & Complete Sale'),

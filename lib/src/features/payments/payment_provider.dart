@@ -1,3 +1,5 @@
+import '../pos/models/cart_item.dart';
+
 class PaymentResult {
   final bool success;
   final String? transactionId;
@@ -12,6 +14,7 @@ abstract class PaymentProvider {
     required int amountCents,
     required String currency,
     required String reference,
+    List<CartItem> items = const [],
     Map<String, dynamic>? metadata,
   });
 }
@@ -23,10 +26,15 @@ class MockPaymentProvider implements PaymentProvider {
     required int amountCents,
     required String currency,
     required String reference,
+    List<CartItem> items = const [],
     Map<String, dynamic>? metadata,
   }) async {
     // Simulate network latency
     await Future.delayed(const Duration(seconds: 1));
-    return PaymentResult(success: true, transactionId: 'mock_txn_\$reference', message: 'Mock payment successful');
+    return PaymentResult(
+      success: true,
+      transactionId: 'mock_txn_\$reference',
+      message: 'Mock payment successful',
+    );
   }
 }

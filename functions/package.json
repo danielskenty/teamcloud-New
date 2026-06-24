@@ -2,10 +2,11 @@
   "name": "teamcloud-nomba-functions",
   "version": "1.0.0",
   "engines": {
-    "node": "18"
+    "node": "22"
   },
   "main": "index.js",
   "scripts": {
+    "test": "node --check index.js",
     "start": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions"
   },

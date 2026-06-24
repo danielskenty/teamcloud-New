@@ -53,9 +53,9 @@ service cloud.firestore {
       }
 
       match /sales/{saleId} {
-        allow create: if hasTenantRole(tenantId, ['cashier', 'business_owner', 'branch_manager', 'sales_staff']);
+        allow create: if false;
         allow read: if hasTenantAccess(tenantId);
-        allow update: if hasTenantRole(tenantId, ['business_owner', 'branch_manager', 'accountant']);
+        allow update: if false;
         allow delete: if false;
       }
 
@@ -85,6 +85,10 @@ service cloud.firestore {
     }
 
     match /subscriptions/{subscriptionId} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    match /platformSettings/{settingId} {
       allow read, write: if isSuperAdmin();
     }
   }

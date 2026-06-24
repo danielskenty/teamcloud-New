@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
+import '../../pos/models/cart_item.dart';
 import '../payment_provider.dart';
 
 class NombaPaymentProvider implements PaymentProvider {
@@ -8,13 +9,14 @@ class NombaPaymentProvider implements PaymentProvider {
   final FirebaseAuth _auth;
 
   NombaPaymentProvider({required this.backendEndpoint, FirebaseAuth? auth})
-      : _auth = auth ?? FirebaseAuth.instance;
+    : _auth = auth ?? FirebaseAuth.instance;
 
   @override
   Future<PaymentResult> processPayment({
     required int amountCents,
     required String currency,
     required String reference,
+    List<CartItem> items = const [],
     Map<String, dynamic>? metadata,
   }) async {
     // IMPORTANT: Do not call Nomba's secret API keys from the client app.
@@ -29,7 +31,10 @@ class NombaPaymentProvider implements PaymentProvider {
         idToken = await user.getIdToken();
       }
     } catch (e) {
-      return PaymentResult(success: false, message: 'Failed to get auth token: $e');
+      return PaymentResult(
+        success: false,
+        message: 'Failed to get auth token: $e',
+      );
     }
 
     if (idToken == null) {
@@ -38,21 +43,23 @@ class NombaPaymentProvider implements PaymentProvider {
 
     final uri = Uri.parse('$backendEndpoint/create-payment');
     final body = json.encode({
-      'amount': amountCents,
       'currency': currency,
       'reference': reference,
+      'items': items.map((item) => item.toMap()).toList(),
       'metadata': metadata ?? {},
     });
 
     try {
-      final resp = await http.post(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-        body: body,
-      ).timeout(const Duration(seconds: 15));
+      final resp = await http
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+            body: body,
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
         final data = json.decode(resp.body) as Map<String, dynamic>;
@@ -63,7 +70,10 @@ class NombaPaymentProvider implements PaymentProvider {
         );
       }
 
-      return PaymentResult(success: false, message: 'Payment backend returned ${resp.statusCode}');
+      return PaymentResult(
+        success: false,
+        message: 'Payment backend returned ${resp.statusCode}',
+      );
     } catch (e) {
       return PaymentResult(success: false, message: e.toString());
     }

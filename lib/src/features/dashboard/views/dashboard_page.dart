@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/providers/tenant_context_provider.dart';
 import '../models/tenant_dashboard_summary.dart';
 import '../providers/tenant_dashboard_providers.dart';
 
@@ -9,16 +10,34 @@ class DashboardPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final summaryAsync = ref.watch(tenantDashboardSummaryProvider);
+    final tenantContextAsync = ref.watch(tenantContextProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.dashboardTitle)),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
-        child: summaryAsync.when(
-          data: (summary) => _buildSummary(context, summary),
+        child: tenantContextAsync.when(
+          data: (tenantContext) {
+            final tenantId = tenantContext?.tenantId;
+            if (tenantId == null) {
+              return const Center(
+                child: Text('Your account is not assigned to a tenant.'),
+              );
+            }
+
+            final summaryAsync = ref.watch(
+              tenantDashboardSummaryProvider(tenantId),
+            );
+            return summaryAsync.when(
+              data: (summary) => _buildSummary(context, summary),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) =>
+                  Center(child: Text('Unable to load dashboard: $error')),
+            );
+          },
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stack) => Center(child: Text('Unable to load dashboard: $error')),
+          error: (error, stack) =>
+              Center(child: Text('Unable to load tenant context: $error')),
         ),
       ),
     );
@@ -42,7 +61,10 @@ class DashboardPage extends ConsumerWidget {
             _statCard('Branches', summary.totalBranches.toString()),
             _statCard('Products', summary.totalProducts.toString()),
             _statCard('Sales', summary.totalSales.toString()),
-            _statCard('Monthly revenue', '\$${summary.monthlyRevenue.toStringAsFixed(2)}'),
+            _statCard(
+              'Monthly revenue',
+              '\$${summary.monthlyRevenue.toStringAsFixed(2)}',
+            ),
           ],
         ),
       ],
@@ -58,9 +80,18 @@ class DashboardPage extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+              Text(
+                title,
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
+              ),
               const SizedBox(height: 12),
-              Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
         ),

@@ -9,10 +9,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:teamcloud_new/app.dart';
+import 'package:teamcloud_new/src/core/providers/firebase_providers.dart';
+import 'package:teamcloud_new/src/features/auth/providers/auth_providers.dart';
 
 void main() {
   testWidgets('App loads smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: TeamCloudApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          firebaseAppProvider.overrideWith((ref) async {}),
+          authStateProvider.overrideWith((ref) => Stream.value(null)),
+          authStateListenableProvider.overrideWith(
+            (ref) => AuthStateListenable(Stream.value(null)),
+          ),
+        ],
+        child: const TeamCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Tenant Login'), findsOneWidget);
   });
 }

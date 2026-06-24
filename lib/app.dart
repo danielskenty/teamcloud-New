@@ -15,32 +15,43 @@ class _TeamCloudAppState extends ConsumerState<TeamCloudApp> {
   @override
   Widget build(BuildContext context) {
     final firebaseInitState = ref.watch(firebaseAppProvider);
-    final router = ref.watch(appRouterProvider);
 
     return firebaseInitState.when(
       loading: () => MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: AppTheme.themeData,
-        home: const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+        home: const Scaffold(body: Center(child: CircularProgressIndicator())),
       ),
       error: (error, stackTrace) => MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: AppTheme.themeData,
         home: Scaffold(
           body: Center(
-            child: Text('Unable to initialize Firebase:\n$error', textAlign: TextAlign.center),
+            child: Text(
+              'Unable to initialize Firebase:\n$error',
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
       ),
-      data: (_) => MaterialApp.router(
-        debugShowCheckedModeBanner: false,
-        title: 'TeamCloud Retail POS',
-        theme: AppTheme.themeData,
-        routerConfig: router,
-        restorationScopeId: 'teamcloud_app',
-      ),
+      data: (_) => const _RoutedApp(),
+    );
+  }
+}
+
+class _RoutedApp extends ConsumerWidget {
+  const _RoutedApp();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(appRouterProvider);
+
+    return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
+      title: 'TeamCloud Retail POS',
+      theme: AppTheme.themeData,
+      routerConfig: router,
+      restorationScopeId: 'teamcloud_app',
     );
   }
 }

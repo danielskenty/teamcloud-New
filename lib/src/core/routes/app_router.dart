@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/branches/views/branches_page.dart';
 import '../../features/auth/views/login_page.dart';
 import '../../features/auth/providers/auth_providers.dart';
+import '../providers/tenant_context_provider.dart';
 import '../../features/dashboard/views/dashboard_page.dart';
 import '../../features/admin/views/admin_home_page.dart';
 import '../../features/products/views/product_list_screen.dart';
@@ -18,9 +19,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/login',
     refreshListenable: authListenable,
-    redirect: (context, state) {
+    redirect: (context, state) async {
       final user = authState.asData?.value;
       final loggingIn = state.uri.toString() == '/login';
+      final forbidden = state.uri.toString() == '/forbidden';
+
+      if (authState.isLoading) {
+        return null;
+      }
 
       if (user == null && !loggingIn) {
         return '/login';
@@ -28,6 +34,30 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (user != null && loggingIn) {
         return '/';
       }
+      if (user == null || forbidden) {
+        return null;
+      }
+
+      final tenantContext = await ref.read(tenantContextProvider.future);
+      final location = state.uri.path;
+
+      if (location == '/admin' && tenantContext?.isPlatformAdmin != true) {
+        return '/forbidden';
+      }
+
+      if (_isTenantRoute(location) &&
+          (tenantContext == null ||
+              !tenantContext.hasTenant ||
+              !_canAccessTenantRoute(location, tenantContext.role))) {
+        return '/forbidden';
+      }
+
+      final requestedTenantId = _requestedTenantId(state.extra);
+      if (requestedTenantId != null &&
+          requestedTenantId != tenantContext?.tenantId) {
+        return '/forbidden';
+      }
+
       return null;
     },
     routes: <GoRoute>[
@@ -40,6 +70,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/admin',
         name: 'admin',
         builder: (context, state) => const AdminHomePage(),
+      ),
+      GoRoute(
+        path: '/forbidden',
+        name: 'forbidden',
+        builder: (context, state) => const _ForbiddenPage(),
       ),
       GoRoute(
         path: '/',
@@ -115,3 +150,68 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+bool _isTenantRoute(String location) {
+  return location == '/' ||
+      location == '/branches' ||
+      location == '/products' ||
+      location == '/inventory' ||
+      location == '/customers' ||
+      location == '/checkout';
+}
+
+bool _canAccessTenantRoute(String location, String? role) {
+  if (role == null) {
+    return false;
+  }
+
+  const tenantAdmins = {'business_owner', 'branch_manager'};
+
+  final allowedRoles = switch (location) {
+    '/' => {
+      ...tenantAdmins,
+      'cashier',
+      'inventory_officer',
+      'accountant',
+      'sales_staff',
+    },
+    '/branches' => tenantAdmins,
+    '/products' => {...tenantAdmins, 'inventory_officer'},
+    '/inventory' => {...tenantAdmins, 'inventory_officer'},
+    '/customers' => {...tenantAdmins, 'cashier', 'sales_staff'},
+    '/checkout' => {...tenantAdmins, 'cashier', 'sales_staff'},
+    _ => <String>{},
+  };
+
+  return allowedRoles.contains(role);
+}
+
+String? _requestedTenantId(Object? extra) {
+  if (extra is String && extra.isNotEmpty) {
+    return extra;
+  }
+  if (extra is Map<String, String>) {
+    return extra['tenantId'];
+  }
+  return null;
+}
+
+class _ForbiddenPage extends StatelessWidget {
+  const _ForbiddenPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Access denied')),
+      body: const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'You do not have permission to access this section.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
+}

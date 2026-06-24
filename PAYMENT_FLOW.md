@@ -165,7 +165,7 @@ Fields:
 - [ ] Local emulator: `firebase emulators:start --only functions`
 - [ ] Deploy to staging/production: `firebase deploy --only functions`
 - [ ] Configure Nomba test API key and webhook secret in functions config.
-- [ ] Configure webhook URL in Nomba dashboard: `https://<project>.cloudfunctions.net/api/webhook`
+- [x] Configure webhook URL in Nomba dashboard: `https://us-central1-teamcloud-94b3a.cloudfunctions.net/api/webhook`
 - [ ] End-to-end test: complete checkout → verify sale `status: "confirmed"` within 10 seconds.
 - [ ] Webhook replay: Verify webhook re-delivery updates matching sale correctly.
 - [ ] Tenant isolation: Verify a user from tenant-A cannot pay for tenant-B's checkout.

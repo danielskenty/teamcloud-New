@@ -6,19 +6,22 @@ final tenantRepositoryProvider = Provider<TenantRepository>((ref) {
   return TenantRepository();
 });
 
-final tenantDashboardSummaryProvider = FutureProvider<TenantDashboardSummary>((ref) async {
-  const tenantId = 'demoTenant';
-  final repository = ref.watch(tenantRepositoryProvider);
+final tenantDashboardSummaryProvider =
+    FutureProvider.family<TenantDashboardSummary, String>((
+      ref,
+      tenantId,
+    ) async {
+      final repository = ref.watch(tenantRepositoryProvider);
 
-  final branchesSnapshot = await repository.branchesRef(tenantId).get();
-  final productsSnapshot = await repository.productsRef(tenantId).get();
-  final salesSnapshot = await repository.salesRef(tenantId).get();
+      final branchesSnapshot = await repository.branchesRef(tenantId).get();
+      final productsSnapshot = await repository.productsRef(tenantId).get();
+      final salesSnapshot = await repository.salesRef(tenantId).get();
 
-  // Placeholder calculations for summary.
-  return TenantDashboardSummary(
-    totalBranches: branchesSnapshot.docs.length,
-    totalProducts: productsSnapshot.docs.length,
-    totalSales: salesSnapshot.docs.length,
-    monthlyRevenue: 0.0,
-  );
-});
+      // Placeholder calculations for summary.
+      return TenantDashboardSummary(
+        totalBranches: branchesSnapshot.docs.length,
+        totalProducts: productsSnapshot.docs.length,
+        totalSales: salesSnapshot.docs.length,
+        monthlyRevenue: 0.0,
+      );
+    });

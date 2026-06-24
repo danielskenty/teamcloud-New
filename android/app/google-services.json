@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "182394055959",
+    "firebase_url": "https://teamcloud-94b3a-default-rtdb.firebaseio.com",
+    "project_id": "teamcloud-94b3a",
+    "storage_bucket": "teamcloud-94b3a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:182394055959:android:527afac466d602e3f4db52",
+        "android_client_info": {
+          "package_name": "com.teamcloud.teamcloud_new"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2oyhAhOn_RTI1-hflQ7hqs3z2ChqTOa8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
