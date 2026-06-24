@@ -11,11 +11,11 @@
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {
-    "firebase-admin": "^11.10.1",
-    "firebase-functions": "^4.3.0",
-    "express": "^4.18.2",
-    "node-fetch": "^2.6.7",
     "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "firebase-admin": "^11.10.1",
+    "firebase-functions": "^7.2.5",
+    "node-fetch": "^2.6.7",
     "nodemailer": "^6.9.4",
     "pdfkit": "^0.13.0"
   }

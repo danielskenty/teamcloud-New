@@ -7,6 +7,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:teamcloud_new/app.dart';
 import 'package:teamcloud_new/src/core/providers/firebase_providers.dart';
@@ -27,6 +28,38 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Tenant Login'), findsOneWidget);
+    expect(
+      find.text('Run every store from one accurate retail cloud.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Login'));
+    await tester.pumpAndSettle();
+    expect(find.text('Business Login'), findsOneWidget);
+  });
+
+  testWidgets('Unknown routes show branded 404 page', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          firebaseAppProvider.overrideWith((ref) async {}),
+          authStateProvider.overrideWith((ref) => Stream.value(null)),
+          authStateListenableProvider.overrideWith(
+            (ref) => AuthStateListenable(Stream.value(null)),
+          ),
+        ],
+        child: const TeamCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final router = GoRouter.of(tester.element(find.byType(TeamCloudApp)));
+    router.go('/missing-page');
+    await tester.pumpAndSettle();
+
+    expect(find.text('404'), findsOneWidget);
+    expect(find.text('Page not found'), findsOneWidget);
   });
 }

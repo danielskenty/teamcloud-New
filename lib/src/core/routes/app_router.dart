@@ -11,35 +11,45 @@ import '../../features/products/views/product_list_screen.dart';
 import '../../features/inventory/views/inventory_screen.dart';
 import '../../features/customers/views/customer_list_screen.dart';
 import '../../features/pos/views/checkout_screen.dart';
+import '../../features/marketing/views/error_pages.dart';
+import '../../features/marketing/views/marketing_pages.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
   final authListenable = ref.watch(authStateListenableProvider);
 
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/',
     refreshListenable: authListenable,
+    errorBuilder: (context, state) {
+      final error = state.error;
+      if (error == null) {
+        return NotFoundPage(location: state.uri.toString());
+      }
+      return RouteErrorPage(message: error.toString());
+    },
     redirect: (context, state) async {
       final user = authState.asData?.value;
-      final loggingIn = state.uri.toString() == '/login';
-      final forbidden = state.uri.toString() == '/forbidden';
+      final location = state.uri.path;
+      final loggingIn = location == '/login';
+      final forbidden = location == '/forbidden';
+      final publicRoute = _isPublicRoute(location);
 
       if (authState.isLoading) {
         return null;
       }
 
-      if (user == null && !loggingIn) {
+      if (user == null && !publicRoute) {
         return '/login';
       }
       if (user != null && loggingIn) {
-        return '/';
+        return '/dashboard';
       }
       if (user == null || forbidden) {
         return null;
       }
 
       final tenantContext = await ref.read(tenantContextProvider.future);
-      final location = state.uri.path;
 
       if (location == '/admin' && tenantContext?.isPlatformAdmin != true) {
         return '/forbidden';
@@ -62,6 +72,37 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: <GoRoute>[
       GoRoute(
+        path: '/',
+        name: 'landing',
+        builder: (context, state) => const LandingPage(),
+      ),
+      GoRoute(
+        path: '/pricing',
+        name: 'pricing',
+        builder: (context, state) => const PricingPage(),
+      ),
+      GoRoute(
+        path: '/about',
+        name: 'about',
+        builder: (context, state) => const AboutPage(),
+      ),
+      GoRoute(
+        path: '/contact',
+        name: 'contact',
+        builder: (context, state) => const ContactPage(),
+      ),
+      GoRoute(
+        path: '/legal',
+        name: 'legal',
+        builder: (context, state) => const LegalPage(),
+      ),
+      GoRoute(
+        path: '/signup',
+        name: 'signup',
+        builder: (context, state) =>
+            SignupPage(initialPlan: state.uri.queryParameters['plan']),
+      ),
+      GoRoute(
         path: '/login',
         name: 'login',
         builder: (context, state) => const LoginPage(),
@@ -74,10 +115,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/forbidden',
         name: 'forbidden',
-        builder: (context, state) => const _ForbiddenPage(),
+        builder: (context, state) => const ForbiddenPage(),
       ),
       GoRoute(
-        path: '/',
+        path: '/dashboard',
         name: 'dashboard',
         builder: (context, state) => const DashboardPage(),
       ),
@@ -151,8 +192,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-bool _isTenantRoute(String location) {
+bool _isPublicRoute(String location) {
   return location == '/' ||
+      location == '/pricing' ||
+      location == '/about' ||
+      location == '/contact' ||
+      location == '/legal' ||
+      location == '/signup' ||
+      location == '/login' ||
+      location == '/forbidden';
+}
+
+bool _isTenantRoute(String location) {
+  return location == '/dashboard' ||
       location == '/branches' ||
       location == '/products' ||
       location == '/inventory' ||
@@ -168,7 +220,7 @@ bool _canAccessTenantRoute(String location, String? role) {
   const tenantAdmins = {'business_owner', 'branch_manager'};
 
   final allowedRoles = switch (location) {
-    '/' => {
+    '/dashboard' => {
       ...tenantAdmins,
       'cashier',
       'inventory_officer',
@@ -194,24 +246,4 @@ String? _requestedTenantId(Object? extra) {
     return extra['tenantId'];
   }
   return null;
-}
-
-class _ForbiddenPage extends StatelessWidget {
-  const _ForbiddenPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Access denied')),
-      body: const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'You do not have permission to access this section.',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ),
-    );
-  }
 }

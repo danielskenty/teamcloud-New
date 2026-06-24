@@ -1,4 +1,4 @@
-const functions = require('firebase-functions');
+const functions = require('firebase-functions/v1');
 const admin = require('firebase-admin');
 const express = require('express');
 const fetch = require('node-fetch');
@@ -40,6 +40,79 @@ const requireSuperAdmin = (req, res, next) => {
   }
   next();
 };
+
+app.post('/public/signup-request', jsonBodyMiddleware, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const plan = sanitizeText(payload.plan, 40);
+    const name = sanitizeText(payload.name, 120);
+    const businessName = sanitizeText(payload.businessName, 160);
+    const email = sanitizeEmail(payload.email);
+    const phone = sanitizeText(payload.phone, 40);
+
+    if (!isMarketingPlan(plan)) {
+      return res.status(400).json({ success: false, message: 'Select a valid plan' });
+    }
+    if (!name || !businessName || !email) {
+      return res.status(400).json({ success: false, message: 'Name, business name, and email are required' });
+    }
+
+    const requestRef = admin.firestore().collection('signupRequests').doc();
+    await requestRef.set({
+      plan,
+      name,
+      businessName,
+      email,
+      phone,
+      status: 'new',
+      source: 'marketing_site',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return res.json({
+      success: true,
+      requestId: requestRef.id,
+      message: 'Signup request received',
+    });
+  } catch (err) {
+    console.error('signup request error', err);
+    return res.status(500).json({ success: false, message: 'Unable to submit signup request' });
+  }
+});
+
+app.post('/public/contact-request', jsonBodyMiddleware, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const name = sanitizeText(payload.name, 120);
+    const email = sanitizeEmail(payload.email);
+    const message = sanitizeText(payload.message, 2000);
+
+    if (!name || !email || !message) {
+      return res.status(400).json({ success: false, message: 'Name, email, and message are required' });
+    }
+
+    const requestRef = admin.firestore().collection('contactRequests').doc();
+    await requestRef.set({
+      name,
+      email,
+      message,
+      status: 'new',
+      source: 'marketing_site',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return res.json({
+      success: true,
+      requestId: requestRef.id,
+      message: 'Contact request received',
+    });
+  } catch (err) {
+    console.error('contact request error', err);
+    return res.status(500).json({ success: false, message: 'Unable to submit contact request' });
+  }
+});
 
 app.get('/admin/user-claims', verifyIdToken, requireSuperAdmin, async (req, res) => {
   try {
@@ -574,6 +647,22 @@ function sanitizeNombaKeySet(keys) {
     sanitized.webhookSecret = keys.webhookSecret.trim();
   }
   return sanitized;
+}
+
+function sanitizeText(value, maxLength) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.trim().replace(/\s+/g, ' ').slice(0, maxLength);
+}
+
+function sanitizeEmail(value) {
+  const email = sanitizeText(value, 180).toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+}
+
+function isMarketingPlan(plan) {
+  return ['Starter', 'Growth', 'Enterprise'].includes(plan);
 }
 
 async function calculateSaleQuote(db, tenantId, branchId, items, discount, options = {}) {
