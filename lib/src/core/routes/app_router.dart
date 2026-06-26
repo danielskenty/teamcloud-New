@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/branches/views/branches_page.dart';
+import '../../features/auth/views/forgot_password_page.dart';
 import '../../features/auth/views/login_page.dart';
 import '../../features/auth/providers/auth_providers.dart';
 import '../providers/tenant_context_provider.dart';
@@ -23,10 +24,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: authListenable,
     errorBuilder: (context, state) {
       final error = state.error;
-      if (error == null) {
+      final errorMessage = error?.toString() ?? '';
+      final notFound =
+          error == null ||
+          errorMessage.toLowerCase().contains('no routes for location');
+      if (notFound) {
         return NotFoundPage(location: state.uri.toString());
       }
-      return RouteErrorPage(message: error.toString());
+      return RouteErrorPage(message: errorMessage);
     },
     redirect: (context, state) async {
       final user = authState.asData?.value;
@@ -34,6 +39,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loggingIn = location == '/login';
       final forbidden = location == '/forbidden';
       final publicRoute = _isPublicRoute(location);
+
+      if (state.error != null) {
+        return null;
+      }
 
       if (authState.isLoading) {
         return null;
@@ -106,6 +115,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/login',
         name: 'login',
         builder: (context, state) => const LoginPage(),
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        name: 'forgot-password',
+        builder: (context, state) => const ForgotPasswordPage(),
       ),
       GoRoute(
         path: '/admin',
@@ -200,6 +214,7 @@ bool _isPublicRoute(String location) {
       location == '/legal' ||
       location == '/signup' ||
       location == '/login' ||
+      location == '/forgot-password' ||
       location == '/forbidden';
 }
 

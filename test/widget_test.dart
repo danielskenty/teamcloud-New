@@ -36,6 +36,10 @@ void main() {
     await tester.tap(find.text('Login'));
     await tester.pumpAndSettle();
     expect(find.text('Business Login'), findsOneWidget);
+
+    await tester.tap(find.text('Forgot password?'));
+    await tester.pumpAndSettle();
+    expect(find.text('Reset your password'), findsOneWidget);
   });
 
   testWidgets('Unknown routes show branded 404 page', (
@@ -55,7 +59,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final router = GoRouter.of(tester.element(find.byType(TeamCloudApp)));
+    final router = GoRouter.of(
+      tester.element(
+        find.text('Run every store from one accurate retail cloud.'),
+      ),
+    );
     router.go('/missing-page');
     await tester.pumpAndSettle();
 
